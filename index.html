@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  
+  <!-- iPad PWA フルスクリーン・オフライン対応設定 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="作品紹介サイネージ">
+  <meta name="theme-color" content="#070b1a">
+  <link rel="manifest" href="manifest.json">
+
+  <title>文化祭 プロジェクト作品紹介サイネージ</title>
+
+  <style>
+    :root {
+      --font-mincho: "Hiragino Mincho ProN", "YuMincho", "Yu Mincho", "MS PMincho", serif;
+      --font-gothic: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "YuGothic", "Yu Gothic", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #050814;
+      color: #ffffff;
+      font-family: var(--font-gothic);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .font-mincho {
+      font-family: var(--font-mincho);
+    }
+
+    .shinkai-text-glow {
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.75), 0 0 26px rgba(135, 206, 250, 0.45), 0 0 48px rgba(255, 160, 122, 0.25);
+    }
+
+    .clock-glow {
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85), 0 0 22px rgba(255, 255, 255, 0.6), 0 0 42px rgba(125, 211, 252, 0.5);
+    }
+
+    .twilight-sky-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background: linear-gradient(180deg, #040716 0%, #0c163b 22%, #1e295d 44%, #3b2d64 62%, #7c3f68 78%, #c85a62 91%, #f29b60 100%);
+    }
+
+    #shinkaiCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .cloud-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    @keyframes cloudDriftSlow {
+      0% { transform: translateX(-2%) translateY(0px) scale(1.03); }
+      50% { transform: translateX(2%) translateY(-5px) scale(1.06); }
+      100% { transform: translateX(-2%) translateY(0px) scale(1.03); }
+    }
+    .animate-cloud-slow {
+      animation: cloudDriftSlow 36s ease-in-out infinite;
+    }
+
+    .lens-flare-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+      background: radial-gradient(circle at 68% 18%, rgba(165, 243, 252, 0.16) 0%, rgba(56, 189, 248, 0.05) 26%, transparent 55%),
+                  radial-gradient(circle at 22% 85%, rgba(251, 146, 60, 0.20) 0%, rgba(244, 63, 94, 0.08) 35%, transparent 65%);
+      mix-blend-mode: screen;
+    }
+
+    .app-shell {
+      position: relative;
+      z-index: 10;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px 34px 18px 34px;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      height: 68px;
+      flex-shrink: 0;
+    }
+
+    .clock-block {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .clock-time-row {
+      display: flex;
+      align-items: baseline;
+      color: #ffffff;
+      letter-spacing: 0.08em;
+    }
+
+    #clockHM { font-size: 46px; line-height: 1; font-weight: 600; }
+    #clockSec { font-size: 23px; margin-left: 7px; color: rgba(224, 242, 254, 0.92); font-weight: 400; }
+
+    .clock-divider {
+      height: 38px;
+      width: 1px;
+      background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.65), transparent);
+    }
+
+    .clock-date-col { display: flex; flex-direction: column; justify-content: center; }
+    #clockDate { font-size: 16px; letter-spacing: 0.22em; color: rgba(255, 255, 255, 0.95); }
+    .clock-sub-label { font-size: 10px; letter-spacing: 0.28em; color: rgba(186, 230, 253, 0.85); margin-top: 4px; }
+
+    .controls-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(10, 18, 44, 0.48);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      padding: 7px 14px;
+      border-radius: 999px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    }
+
+    .project-counter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-right: 10px;
+      border-right: 1px solid rgba(255, 255, 255, 0.2);
+      font-size: 13px;
+    }
+
+    .star-dot { width: 8px; height: 8px; border-radius: 50%; background: #7dd3fc; box-shadow: 0 0 10px #7dd3fc; }
+
+    .btn-glass {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #ffffff;
+      padding: 6px 13px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-glass:active { transform: scale(0.96); background: rgba(255, 255, 255, 0.24); }
+
+    .main-grid {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 5.2fr 6.8fr;
+      gap: 28px;
+      padding: 6px 0;
+    }
+
+    .slide-fade {
+      transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1), transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .slide-hidden { opacity: 0; transform: translateY(8px) scale(0.99); }
+
+    .left-visual-card {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 24px;
+      overflow: hidden;
+      background: rgba(8, 13, 32, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 35px rgba(125, 211, 252, 0.14);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .poster-blur-backdrop {
+      position: absolute;
+      inset: -25px;
+      background-size: cover;
+      background-position: center;
+      filter: blur(28px) brightness(0.48) saturate(1.25);
+      transform: scale(1.1);
+      z-index: 1;
+    }
+
+    .poster-main-stage {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .poster-img-element {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      border-radius: 6px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
+    }
+
+    .right-text-column {
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .title-glass-panel {
+      position: relative;
+      background: rgba(12, 21, 52, 0.52);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.30);
+      border-radius: 24px;
+      padding: 22px 28px;
+      box-shadow: 0 16px 40px rgba(4, 9, 26, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .title-top-line {
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 4px;
+      background: linear-gradient(90deg, #7dd3fc, #f472b6, #fbbf24);
+    }
+
+    .title-category-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .title-category-line { width: 28px; height: 1px; background: #7dd3fc; }
+    #projectCategory { font-size: 13px; letter-spacing: 0.26em; color: #bae6fd; font-weight: 600; }
+    #projectTitle { font-size: clamp(2.2rem, 3.8vw, 3.35rem); font-weight: 700; line-height: 1.15; letter-spacing: 0.04em; color: #ffffff; }
+    #projectSubtitle { font-size: clamp(1.05rem, 1.6vw, 1.35rem); color: rgba(224, 242, 254, 0.92); letter-spacing: 0.14em; margin-top: 6px; font-weight: 500; }
+
+    .cards-stack {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .info-card {
+      flex: 1;
+      min-height: 0;
+      border-radius: 24px;
+      padding: 22px 26px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 14px 36px rgba(4, 9, 26, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.30);
+    }
+
+    .card-kodawari {
+      background: linear-gradient(135deg, rgba(46, 22, 54, 0.62) 0%, rgba(92, 34, 62, 0.46) 100%);
+      border: 1px solid rgba(253, 186, 116, 0.42);
+    }
+
+    .card-comment {
+      background: linear-gradient(135deg, rgba(12, 28, 68, 0.64) 0%, rgba(26, 56, 108, 0.46) 100%);
+      border: 1px solid rgba(125, 211, 252, 0.42);
+    }
+
+    .card-header-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .card-icon-box { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .icon-amber { background: linear-gradient(135deg, #fbbf24, #f43f5e); box-shadow: 0 4px 16px rgba(244, 63, 94, 0.45); }
+    .icon-cyan { background: linear-gradient(135deg, #38bdf8, #6366f1); box-shadow: 0 4px 16px rgba(56, 189, 248, 0.45); }
+    .card-badge-title { font-size: 20px; font-weight: 700; letter-spacing: 0.14em; }
+    .card-badge-sub { font-size: 11px; letter-spacing: 0.22em; opacity: 0.75; margin-left: 8px; }
+    .card-body-text { font-size: clamp(1.35rem, 2.2vw, 1.85rem); font-weight: 600; line-height: 1.5; letter-spacing: 0.03em; color: #ffffff; padding-left: 4px; }
+
+    .bottom-bar {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-shrink: 0;
+    }
+
+    .dots-container { display: flex; align-items: center; gap: 8px; }
+    .dot-indicator { height: 8px; border-radius: 999px; transition: all 0.35s ease; cursor: pointer; border: none; }
+
+    .progress-track {
+      flex: 1; max-width: 340px; height: 5px;
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 999px; overflow: hidden; padding: 1px;
+    }
+    #progressBar {
+      height: 100%; width: 0%; border-radius: 999px;
+      background: linear-gradient(90deg, #38bdf8, #f472b6, #fbbf24);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.8);
+    }
+    .nav-buttons { display: flex; align-items: center; gap: 8px; }
+  </style>
+</head>
+<body>
+
+  <div class="twilight-sky-bg"></div>
+  <canvas id="shinkaiCanvas"></canvas>
+  <div class="cloud-layer">
+    <svg class="animate-cloud-slow" style="position:absolute; bottom:0; left:0; width:100%; height:44vh;" viewBox="0 0 1440 420" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="cloudRim" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#ffedd5" stop-opacity="0.85" />
+          <stop offset="18%" stop-color="#fb7185" stop-opacity="0.65" />
+          <stop offset="55%" stop-color="#311042" stop-opacity="0.90" />
+          <stop offset="100%" stop-color="#070a1e" stop-opacity="0.98" />
+        </linearGradient>
+        <linearGradient id="cloudBack" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#f472b6" stop-opacity="0.32" />
+          <stop offset="50%" stop-color="#4c1d95" stop-opacity="0.52" />
+          <stop offset="100%" stop-color="#090d24" stop-opacity="0.88" />
+        </linearGradient>
+      </defs>
+      <path fill="url(#cloudBack)" d="M0,260 C180,220 290,140 460,180 C630,220 720,90 920,130 C1120,170 1260,80 1440,120 L1440,420 L0,420 Z"></path>
+      <path fill="url(#cloudRim)" d="M0,310 C150,290 240,190 410,220 C580,250 690,150 880,195 C1070,240 1190,140 1350,175 C1400,186 1425,195 1440,205 L1440,420 L0,420 Z"></path>
+      <path fill="#050714" opacity="0.95" d="M0,365 L140,342 L290,356 L480,318 L670,348 L890,326 L1120,352 L1310,330 L1440,345 L1440,420 L0,420 Z"></path>
+    </svg>
+  </div>
+  <div class="lens-flare-overlay"></div>
+
+  <div class="app-shell">
+    <header class="top-bar">
+      <div class="clock-block">
+        <div class="clock-time-row font-mincho clock-glow">
+          <span id="clockHM">00:00</span>
+          <span id="clockSec">00</span>
+        </div>
+        <div class="clock-divider"></div>
+        <div class="clock-date-col font-mincho">
+          <div id="clockDate">2026年10月28日 (水)</div>
+          <div class="clock-sub-label">SCHOOL FESTIVAL PROJECT SIGNAGE</div>
+        </div>
+      </div>
+
+      <div class="controls-bar">
+        <div class="project-counter">
+          <span class="star-dot"></span>
+          <span class="font-mincho">作品 <strong id="currentIndexLabel">1</strong> / <span id="totalCountLabel">1</span></span>
+        </div>
+        <button class="btn-glass" id="autoPlayBtn" onclick="toggleAutoPlay()">
+          <span id="autoPlayText">自動再生 ON</span>
+        </button>
+        <button class="btn-glass" onclick="toggleFullScreen()">
+          <span>全画面</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="main-grid">
+      <section class="left-visual-card slide-fade" id="leftVisualCard">
+        <div class="poster-blur-backdrop" id="posterBlurBackdrop"></div>
+        <div class="poster-main-stage">
+          <img id="posterImageElement" class="poster-img-element" src="" alt="作品ポスター" />
+        </div>
+      </section>
+
+      <section class="right-text-column slide-fade" id="rightTextCard">
+        <div class="title-glass-panel">
+          <div class="title-top-line"></div>
+          <div class="title-category-row">
+            <span class="title-category-line"></span>
+            <span id="projectCategory" class="font-mincho">3D ACTION GAME PROJECT</span>
+          </div>
+          <h1 id="projectTitle" class="font-mincho shinkai-text-glow">SPACE CAT</h1>
+          <div id="projectSubtitle" class="font-mincho">スペースキャット</div>
+        </div>
+
+        <div class="cards-stack">
+          <div class="info-card card-kodawari">
+            <div class="card-header-row">
+              <div class="card-icon-box icon-amber">
+                <svg width="22" height="22" fill="none" stroke="#ffffff" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+                </svg>
+              </div>
+              <div>
+                <span id="card1Label" class="card-badge-title font-mincho" style="color:#fef3c7;">こだわり</span>
+                <span class="card-badge-sub font-mincho" style="color:#fde68a;">HIGHLIGHT &amp; CRAFT</span>
+              </div>
+            </div>
+            <p id="card1Body" class="card-body-text">高低差を感じられるステージにしました！</p>
+          </div>
+
+          <div class="info-card card-comment">
+            <div class="card-header-row">
+              <div class="card-icon-box icon-cyan">
+                <svg width="22" height="22" fill="none" stroke="#ffffff" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                </svg>
+              </div>
+              <div>
+                <span id="card2Label" class="card-badge-title font-mincho" style="color:#e0f2fe;">制作者コメント</span>
+                <span class="card-badge-sub font-mincho" style="color:#bae6fd;">CREATOR'S MESSAGE</span>
+              </div>
+            </div>
+            <p id="card2Body" class="card-body-text">初めて制作した3Dゲームです！</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="bottom-bar">
+      <div class="dots-container" id="dotsContainer"></div>
+      <div class="progress-track">
+        <div id="progressBar"></div>
+      </div>
+      <div class="nav-buttons">
+        <button class="btn-glass" onclick="prevSlide()">◀ 前へ</button>
+        <button class="btn-glass" onclick="nextSlide()">次へ ▶</button>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // 作品データ（画像ファイル名と文章を直接指定するため、ブラウザ容量制限に一切引っかかりません）
+    const projects = [
+      {
+        title: 'SPACE CAT',
+        subtitle: 'スペースキャット',
+        category: '3D ACTION GAME PROJECT',
+        image: 'poster1.jpg', // GitHubにアップする画像ファイル名
+        card1Label: 'こだわり',
+        card1Body: '高低差を感じられるステージにしました！',
+        card2Label: '制作者コメント',
+        card2Body: '初めて制作した3Dゲームです！'
+      }
+    ];
+
+    let currentIndex = 0;
+    let isAutoPlay = true;
+    const SLIDE_INTERVAL_MS = 12000;
+    let elapsedMs = 0;
+
+    function updateClock() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
+      const date = now.getDate();
+      const days = ['日', '月', '火', '水', '木', '金', '土'];
+      document.getElementById('clockHM').textContent = `${hh}:${mm}`;
+      document.getElementById('clockSec').textContent = ss;
+      document.getElementById('clockDate').textContent = `${year}年${month}月${date}日 (${days[now.getDay()]})`;
+    }
+
+    function renderSlide(index, animate = true) {
+      if (!projects.length) return;
+      const item = projects[index];
+      const leftCard = document.getElementById('leftVisualCard');
+      const rightCard = document.getElementById('rightTextCard');
+
+      if (animate) {
+        leftCard.classList.add('slide-hidden');
+        rightCard.classList.add('slide-hidden');
+      }
+
+      setTimeout(() => {
+        const imgEl = document.getElementById('posterImageElement');
+        const backdropEl = document.getElementById('posterBlurBackdrop');
+
+        imgEl.src = item.image;
+        backdropEl.style.backgroundImage = `url("${item.image}")`;
+
+        document.getElementById('projectCategory').textContent = item.category;
+        document.getElementById('projectTitle').textContent = item.title;
+        document.getElementById('projectSubtitle').textContent = item.subtitle;
+        document.getElementById('card1Label').textContent = item.card1Label;
+        document.getElementById('card1Body').textContent = item.card1Body;
+        document.getElementById('card2Label').textContent = item.card2Label;
+        document.getElementById('card2Body').textContent = item.card2Body;
+
+        document.getElementById('currentIndexLabel').textContent = index + 1;
+        document.getElementById('totalCountLabel').textContent = projects.length;
+        renderDots();
+
+        if (animate) {
+          leftCard.classList.remove('slide-hidden');
+          rightCard.classList.remove('slide-hidden');
+        }
+      }, animate ? 260 : 0);
+    }
+
+    function renderDots() {
+      const container = document.getElementById('dotsContainer');
+      container.innerHTML = '';
+      projects.forEach((_, idx) => {
+        const dot = document.createElement('button');
+        dot.className = 'dot-indicator';
+        if (idx === currentIndex) {
+          dot.style.width = '34px';
+          dot.style.background = 'linear-gradient(90deg, #7dd3fc, #f472b6)';
+          dot.style.boxShadow = '0 0 10px rgba(125,211,252,0.8)';
+        } else {
+          dot.style.width = '10px';
+          dot.style.background = 'rgba(255,255,255,0.28)';
+        }
+        dot.onclick = () => { currentIndex = idx; elapsedMs = 0; renderSlide(currentIndex, true); };
+        container.appendChild(dot);
+      });
+    }
+
+    function nextSlide() {
+      if (projects.length <= 1) { elapsedMs = 0; return; }
+      currentIndex = (currentIndex + 1) % projects.length;
+      elapsedMs = 0;
+      renderSlide(currentIndex, true);
+    }
+
+    function prevSlide() {
+      if (projects.length <= 1) { elapsedMs = 0; return; }
+      currentIndex = (currentIndex - 1 + projects.length) % projects.length;
+      elapsedMs = 0;
+      renderSlide(currentIndex, true);
+    }
+
+    function toggleAutoPlay() {
+      isAutoPlay = !isAutoPlay;
+      document.getElementById('autoPlayText').textContent = isAutoPlay ? '自動再生 ON' : '一時停止中';
+    }
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+
+    setInterval(() => {
+      if (!isAutoPlay) return;
+      elapsedMs += 100;
+      const pct = Math.min(100, (elapsedMs / SLIDE_INTERVAL_MS) * 100);
+      document.getElementById('progressBar').style.width = `${pct}%`;
+      if (elapsedMs >= SLIDE_INTERVAL_MS) {
+        elapsedMs = 0;
+        if (projects.length > 1) nextSlide();
+      }
+    }, 100);
+
+    function initShinkaiBackground() {
+      const canvas = document.getElementById('shinkaiCanvas');
+      const ctx = canvas.getContext('2d');
+      let w = canvas.width = window.innerWidth;
+      let h = canvas.height = window.innerHeight;
+
+      window.addEventListener('resize', () => {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+      });
+
+      const stars = Array.from({ length: 160 }, () => ({
+        x: Math.random() * w,
+        y: Math.random() * (h * 0.72),
+        r: Math.random() * 1.6 + 0.4,
+        phase: Math.random() * Math.PI * 2,
+        speed: Math.random() * 0.025 + 0.008,
+        color: ['#ffffff', '#e0f2fe', '#bae6fd', '#fef08a', '#fbcfe8'][Math.floor(Math.random() * 5)]
+      }));
+
+      const dusts = Array.from({ length: 35 }, () => ({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        r: Math.random() * 2.2 + 0.8,
+        vx: (Math.random() - 0.5) * 0.25,
+        vy: -Math.random() * 0.35 - 0.1,
+        alpha: Math.random() * 0.6 + 0.2
+      }));
+
+      function drawComet() {
+        const startX = w * 0.86;
+        const startY = -h * 0.04;
+        const headX = w * 0.28;
+        const headY = h * 0.34;
+
+        ctx.save();
+        const tailGrad = ctx.createLinearGradient(headX, headY, startX, startY);
+        tailGrad.addColorStop(0, 'rgba(224, 242, 254, 0.72)');
+        tailGrad.addColorStop(0.28, 'rgba(56, 189, 248, 0.38)');
+        tailGrad.addColorStop(0.62, 'rgba(236, 72, 153, 0.16)');
+        tailGrad.addColorStop(1, 'rgba(236, 72, 153, 0)');
+
+        ctx.beginPath();
+        ctx.moveTo(headX, headY);
+        ctx.quadraticCurveTo(w * 0.56, h * 0.12, startX, startY);
+        ctx.quadraticCurveTo(w * 0.59, h * 0.18, headX, headY);
+        ctx.fillStyle = tailGrad;
+        ctx.fill();
+
+        const coreGlow = ctx.createRadialGradient(headX, headY, 1, headX, headY, 34);
+        coreGlow.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        coreGlow.addColorStop(0.3, 'rgba(125, 211, 252, 0.85)');
+        coreGlow.addColorStop(1, 'rgba(56, 189, 248, 0)');
+        ctx.fillStyle = coreGlow;
+        ctx.beginPath();
+        ctx.arc(headX, headY, 34, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function animate() {
+        ctx.clearRect(0, 0, w, h);
+        for (const s of stars) {
+          s.phase += s.speed;
+          const alpha = 0.35 + 0.65 * Math.sin(s.phase);
+          ctx.globalAlpha = Math.max(0.1, alpha);
+          ctx.fillStyle = s.color;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        drawComet();
+        for (const d of dusts) {
+          d.x += d.vx;
+          d.y += d.vy;
+          if (d.y < -10) d.y = h + 10;
+          if (d.x < -10) d.x = w + 10;
+          if (d.x > w + 10) d.x = -10;
+          ctx.fillStyle = `rgba(224, 242, 254, ${d.alpha})`;
+          ctx.beginPath();
+          ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        requestAnimationFrame(animate);
+      }
+      animate();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateClock();
+      setInterval(updateClock, 1000);
+      renderSlide(0, false);
+      initShinkaiBackground();
+    });
+  </script>
+</body>
+</html>
